@@ -19,12 +19,16 @@ int main(int argc, char *argv[])
     }, Qt::QueuedConnection);
     engine.load(url);
 
-    FaviconDownloader fav;
+    auto *manager = new QNetworkAccessManager();
+    FaviconDownloader fav(manager);
 
     auto *rootObject = engine.rootObjects().at(0);
     QObject::connect(rootObject, SIGNAL(download(QString)),
                      &fav, SLOT(downloadFavicon(QString)));
     QObject::connect(&fav, SIGNAL(downloaded(QString)),
                      rootObject, SIGNAL(loadImage(QString)));
+    QObject::connect(&fav, SIGNAL(downloadFailed()),
+                     rootObject, SIGNAL(faviconDownloadFailed()));
+
     return app.exec();
 }

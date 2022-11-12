@@ -9,100 +9,49 @@
 #include <QNetworkReply>
 #include <QUrlQuery>
 
-FaviconDownloader::FaviconDownloader(QObject *parent)
+FaviconDownloader::FaviconDownloader(QNetworkAccessManager *applicationManager, QObject *parent)
     : QObject{parent}
-    , m_manager(this)
-    , m_endpoint(QStringLiteral("http://favicongrabber.com/api/grab/"))
-    , m_path(QStringLiteral("/api/grab/%1"))
+    , m_applicationManager(applicationManager)
+    , m_faviconGrabber(applicationManager, this)
+    , m_imageDownloader(applicationManager, this)
 {
-    m_manager.setAutoDeleteReplies(true);
+    connect(&m_faviconGrabber, &FaviconGrabber::grabbed,
+            &m_imageDownloader, &ImageDownloader::download);
+
+    connect(&m_imageDownloader, &ImageDownloader::downloadFinished,
+            this, &FaviconDownloader::downloaded);
+
+    connect(&m_faviconGrabber, &FaviconGrabber::grabFailed,
+            this, &FaviconDownloader::downloadFailed);
+    connect(&m_imageDownloader, &ImageDownloader::downloadFailed,
+            this, &FaviconDownloader::downloadFailed);
 }
 
-QString FaviconDownloader::_downloadFavicon(const QString &domainName)
+void FaviconDownloader::downloadFavicon(const QString &urlStr)
 {
-    QUrl            url{m_endpoint};
-    url.setPath(m_path.arg(domainName));
+    const QString domain = _getDomain(urlStr);
 
-    QEventLoop loop;
-    connect(&m_manager, &QNetworkAccessManager::finished,
-            &loop, &QEventLoop::quit);
-
-    QNetworkRequest request(url);
-    QNetworkReply *reply = m_manager.get(request);
-    loop.exec();
-
-    if (!reply) {
-        return {};
+    if (domain.isEmpty()) {
+        qWarning() << "Not a valid domain";
+        emit downloadFailed();
+        return;
     }
 
-    if (reply->error() != QNetworkReply::NoError) {
-        qWarning() << reply->errorString();
-        return {};
-    }
-
-    const QByteArray data = reply->readAll();
-    QJsonDocument doc(QJsonDocument::fromJson(data));
-    const QString src = doc[QStringLiteral("icons")].toArray().first()[QStringLiteral("src")].toString();
-
-    request.setUrl(src);
-    reply = m_manager.get(request);
-
-    loop.exec();
-
-    if (!reply) {
-        return {};
-    }
-
-    if (reply->error() != QNetworkReply::NoError) {
-        qWarning() << reply->errorString();
-        return {};
-    }
-
-    return save(reply->readAll(), domainName);
+    m_faviconGrabber.grab(domain);
 }
 
-QString FaviconDownloader::getDomainName(const QString &urlStr) const
+QString FaviconDownloader::_getDomain(const QUrl &url) const
 {
-    QUrl url{urlStr};
     if (!url.isValid()) {
+        qWarning() << "Invalid url:" << url;
         return {};
     }
 
-    const QString host = url.host();
-    if (!host.isEmpty()) {
-        return host;
+    QString host = url.host();
+    if (host.isEmpty()) {
+        // already a domain name?
+        return url.toString();
     }
 
-    return urlStr;
-}
-
-QString FaviconDownloader::downloadFavicon(const QString &urlStr)
-{
-    const QString domain = getDomainName(urlStr);
-    if (domain.isEmpty()){
-        qWarning() << "Invalid url:" << urlStr;
-        return {};
-    }
-
-    return _downloadFavicon(domain);
-}
-
-QString FaviconDownloader::save(const QByteArray &data, const QString &name) const
-{
-    const QString imagePath(QStringLiteral("./%1.png").arg(name));
-    const QImage image = dataToImage(data);
-    {
-        QImageWriter writer(imagePath);
-        writer.write(image);
-    }
-
-    emit downloaded(QUrl::fromLocalFile(imagePath).toString());
-    return imagePath;
-}
-
-QImage FaviconDownloader::dataToImage(const QByteArray &data) const
-{
-    QImage image;
-    image.loadFromData(data);
-    return image;
+    return host;
 }

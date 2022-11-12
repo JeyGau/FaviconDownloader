@@ -2,32 +2,31 @@
 #define FAVICONDOWNLOADER_H
 
 #include <QObject>
-#include <QNetworkAccessManager>
+
+#include "favicongrabber.h"
+#include "imagedownloader.h"
 
 class FaviconDownloader : public QObject
 {
     Q_OBJECT
 public:
-    explicit FaviconDownloader(QObject *parent = nullptr);
+    explicit FaviconDownloader(QNetworkAccessManager *applicationManager, QObject *parent = nullptr);
 
 public slots:
-    QString downloadFavicon(const QString &urlStr);
+    void downloadFavicon(const QString &urlStr);
+
+private:
+    QString _getDomain(const QUrl &url) const;
 
 signals:
     void downloaded(const QString &imagePath);
+    void downloadFailed();
 
 private:
-    QString save(const QByteArray &data, const QString &name) const;
-    QImage dataToImage(const QByteArray &data) const;
-    QString _downloadFavicon(const QString &domainName);
+    QNetworkAccessManager *const m_applicationManager;
 
-    QString getDomainName(const QString &urlStr) const;
-
-private:
-    QNetworkAccessManager m_manager;
-
-    const QString m_endpoint;
-    const QString m_path;
+    FaviconGrabber  m_faviconGrabber;
+    ImageDownloader m_imageDownloader;
 };
 
 #endif // FAVICONDOWNLOADER_H

@@ -13,13 +13,18 @@ Window {
 
     signal download(string d)
     signal loadImage(string imagePath)
+    signal faviconDownloadFailed()
 
-    onLoadImage: favicon.source = imagePath
+    onLoadImage:
+        imagePath => favicon.source = imagePath
+
+    onFaviconDownloadFailed: downloadBtn.enabled = true;
 
     Rectangle {
         anchors.fill: parent
+        color: "grey"
 
-        TextInput {
+        TextField {
             id: url
 
             anchors.top: parent.top
@@ -28,7 +33,16 @@ Window {
 
             focus: true
 
-            height: 32
+            color: "black"
+
+            placeholderText: "Enter text"
+            background: Rectangle {
+                radius: 5
+                color: "white"
+                implicitHeight: 32
+                border.color: "#333"
+                border.width: 1
+            }
         }
 
         Button {
@@ -38,7 +52,10 @@ Window {
 
             text: "Download"
 
-            onClicked: download(url.text)
+            onClicked: {
+//                enabled = false;
+                download(url.text);
+            }
         }
 
         Image {
@@ -46,6 +63,8 @@ Window {
 
             anchors.centerIn: parent
             fillMode: Image.PreserveAspectFit
+
+            smooth: true
         }
     }
 }
